@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f172a" />
+<title>خداع · جريمة قتل في عمارة 64</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html,body{background:#0f172a;}
+  body{padding-top:env(safe-area-inset-top,0px);-webkit-tap-highlight-color:transparent;}
+  .dc-root{font-family:'IBM Plex Sans Arabic',Tahoma,'Segoe UI',sans-serif;}
+  .dc-display{font-family:'Reem Kufi','IBM Plex Sans Arabic',Tahoma,sans-serif;}
+  .dc-neon{color:#fecaca;text-shadow:0 0 6px rgba(239,68,68,.9),0 0 18px rgba(239,68,68,.6),0 0 42px rgba(239,68,68,.35);}
+  .dc-amber{text-shadow:0 0 10px rgba(245,158,11,.55);}
+  @keyframes dc-flicker{0%,18%,22%,25%,53%,57%,100%{opacity:1}20%,24%,55%{opacity:.3}}
+  .dc-flicker{animation:dc-flicker 2.6s ease-in-out 1;}
+  @keyframes dc-flash{0%,100%{background-color:rgba(239,68,68,0)}50%{background-color:rgba(239,68,68,.35)}}
+  .dc-flash{animation:dc-flash .6s ease-in-out 6;}
+  @keyframes dc-drop{from{transform:translateY(-12px);opacity:0}to{transform:none;opacity:1}}
+  .dc-drop{animation:dc-drop .25s ease-out;}
+  .dc-pin{box-shadow:0 0 0 3px rgba(239,68,68,.25),0 0 14px rgba(239,68,68,.9);}
+  .dc-rain{background-image:repeating-linear-gradient(105deg,rgba(148,163,184,.035) 0 1px,transparent 1px 10px);}
+  .dc-root button:focus-visible,.dc-root input:focus-visible{outline:2px solid #f59e0b;outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){.dc-flicker,.dc-flash,.dc-drop{animation:none}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<noscript>فعّل JavaScript لتشغيل اللعبة.</noscript>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/lucide-react@0.383.0/dist/umd/lucide-react.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+/* ───────── الأيقونات (مع بديل بسيط إن لم تُحمَّل المكتبة) ───────── */
+const LIB = window.LucideReact || window.lucideReact || {};
+const Fallback = ({ className = "" }) => (
+  <span className={`inline-block rounded-full border-2 border-current ${className}`} style={{ minWidth: "1em", minHeight: "1em" }} />
+);
+const I = (n) => LIB[n] || Fallback;
+const Skull = I("Skull"), Search = I("Search"), Microscope = I("Microscope"), Users = I("Users"), Eye = I("Eye"),
+  EyeOff = I("EyeOff"), Timer = I("Timer"), Play = I("Play"), Pause = I("Pause"), RotateCcw = I("RotateCcw"),
+  Gavel = I("Gavel"), Moon = I("Moon"), ChevronLeft = I("ChevronLeft"), RefreshCw = I("RefreshCw"), Trophy = I("Trophy"),
+  X = I("X"), Check = I("Check"), Volume2 = I("Volume2"), VolumeX = I("VolumeX"), MapPin = I("MapPin"),
+  Fingerprint = I("Fingerprint"), Minus = I("Minus"), Plus = I("Plus"), ShieldCheck = I("ShieldCheck"), ShieldOff = I("ShieldOff"),
+  LayoutGrid = I("LayoutGrid"), Crosshair = I("Crosshair"), Crown = I("Crown"), Share2 = I("Share2"), LogOut = I("LogOut"),
+  WifiOff = I("WifiOff"), UserX = I("UserX"), Building2 = I("Building2");
+
+/* ───────── الاتصال والجلسة ───────── */
+const socket = io({ transports: ["websocket", "polling"] });
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+  del: (k) => { try { localStorage.removeItem(k); } catch (e) {} },
+};
+const PID = (() => {
+  let id = store.get("dc_pid");
+  if (!id) {
+    id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    store.set("dc_pid", id);
+  }
+  return id;
+})();
+let clockOffset = 0;
+const now = () => Date.now() + clockOffset;
+const send = (ev, data = {}) =>
+  new Promise((res) => {
+    if (!socket.connected) return res({ error: "لا يوجد اتصال. حاول بعد لحظات" });
+    socket.timeout(8000).emit(ev, data, (err, r) => res(err ? { error: "انتهت مهلة الاتصال" } : r || {}));
+  });
+
+/* ───────── الصوت ───────── */
+let AC = null;
+const unlockAudio = () => {
+  try {
+    if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+  } catch (e) {}
+};
+window.addEventListener("pointerdown", unlockAudio, { passive: true });
+const beep = (freq = 880, dur = 0.15, times = 3) => {
+  if (!AC) return;
+  try {
+    for (let i = 0; i < times; i++) {
+      const o = AC.createOscillator(), g = AC.createGain();
+      o.type = "square"; o.frequency.value = freq;
+      o.connect(g); g.connect(AC.destination);
+      const t = AC.currentTime + i * 0.3;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur + 0.02);
+    }
+  } catch (e) {}
+};
+const vibrate = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+
+/* ───────── ثوابت ───────── */
+const glass = "bg-slate-800/40 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/40";
+const ROUNDS = ["r1", "r2", "r3"];
+const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+const CAUSE = [["اختناق","Suffocation"],["إصابة بالغة","Severe Injury"],["نزيف","Loss of Blood"],["مرض","Illness"],["تسمم","Poisoning"],["حادث","Accident"]].map(([ar,en]) => ({ ar, en }));
+
+const ROLES = {
+  forensic: { ar: "فني مسرح الجريمة", en: "Forensic Scientist", Icon: Microscope, tone: "text-sky-300", ring: "border-sky-400/40",
+    desc: "تعرف الحل ولا تتكلم أبدًا. وجّه المحققين بوضع العلامات على بطاقات المشهد." },
+  murderer: { ar: "القاتل", en: "Murderer", Icon: Skull, tone: "text-red-400", ring: "border-red-500/60",
+    desc: "اختر سرًّا أداة جريمة واحدة ودليلًا واحدًا من بطاقاتك، ثم أبعد الشبهة عن نفسك." },
+  investigator: { ar: "محقق", en: "Investigator", Icon: Search, tone: "text-slate-100", ring: "border-slate-400/40",
+    desc: "حلّل إشارات الفني واكشف القاتل مع أداته ودليله. لديك شارة اتهام واحدة." },
+  accomplice: { ar: "الشريك", en: "Accomplice", Icon: Users, tone: "text-orange-400", ring: "border-orange-400/50",
+    desc: "تعرف القاتل وتفوز معه. ضلّل المحققين دون أن تنكشف." },
+  witness: { ar: "الشاهد", en: "Witness", Icon: Eye, tone: "text-amber-300", ring: "border-amber-400/50",
+    desc: "رأيت القاتل والشريك لكنك لا تعرف من منهما من. ساعد المحققين بحذر، فإن كشفوك خسر فريقك." },
+};
+
+/* ───────── مكوّنات صغيرة ───────── */
+function Btn({ children, onClick, variant = "primary", disabled, className = "" }) {
+  const v = {
+    primary: "bg-red-500 hover:bg-red-400 text-white shadow-lg shadow-red-500/30",
+    amber: "bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-lg shadow-amber-500/25",
+    ghost: "bg-white/5 hover:bg-white/10 text-slate-100 border border-white/10",
+  }[variant];
+  return (
+    <button onClick={onClick} disabled={disabled}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${v} ${className}`}>
+      {children}
+    </button>
+  );
+}
+
+function CardChip({ c, kind, active, onClick, size = "sm" }) {
+  const Tag = onClick ? "button" : "div";
+  const base = kind === "means" ? "border-red-500/30 bg-red-500/10 text-red-100" : "border-amber-500/30 bg-amber-500/10 text-amber-100";
+  const ring = active ? (kind === "means" ? "ring-2 ring-red-500 bg-red-500/30" : "ring-2 ring-amber-400 bg-amber-500/30") : "";
+  return (
+    <Tag onClick={onClick} className={`w-full rounded-lg border text-right ${size === "lg" ? "px-3 py-2.5" : "px-2 py-1.5"} ${base} ${ring} ${onClick ? "transition hover:brightness-125" : ""}`}>
+      <div className={`${size === "lg" ? "text-base" : "text-sm"} font-semibold leading-tight`}>{c.ar}</div>
+      <div className="text-xs leading-tight opacity-60">{c.en}</div>
+    </Tag>
+  );
+}
+
+function CardRow({ title, cards, kind, pick, onPick, size }) {
+  return (
+    <div>
+      <div className={`mb-1.5 text-xs font-medium ${kind === "means" ? "text-red-300" : "text-amber-300"}`}>{title}</div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {cards.map((c) => (
+          <CardChip key={c.id} c={c} kind={kind} size={size} active={pick === c.id} onClick={onPick ? () => onPick(c.id) : undefined} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ on, onChange, label, sub, disabled }) {
+  return (
+    <button onClick={() => !disabled && onChange(!on)} disabled={disabled}
+      className={`flex w-full items-center justify-between gap-3 rounded-xl border bg-white/5 px-4 py-3 text-right transition disabled:opacity-40 ${on ? "border-amber-500/50" : "border-white/10"}`}>
+      <div>
+        <div className="font-semibold">{label}</div>
+        <div className="text-xs text-slate-400">{sub}</div>
+      </div>
+      <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? "bg-amber-500" : "bg-slate-600"}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? "left-0.5" : "left-5"}`} />
+      </span>
+    </button>
+  );
+}
+
+function Title({ big }) {
+  return big ? (
+    <header className="pt-4 pb-8 text-center">
+      <Building2 className="mx-auto mb-3 h-10 w-10 text-red-500" strokeWidth={1.4} />
+      <h1 className="dc-display dc-neon dc-flicker text-6xl font-bold leading-tight">خداع</h1>
+      <p className="dc-display mt-2 text-xl text-amber-400 dc-amber">جريمة قتل في عمارة 64</p>
+      <p className="mt-1 text-sm text-slate-400" dir="ltr">Deception: Murder in Building 64</p>
+    </header>
+  ) : (
+    <div>
+      <div className="dc-display dc-neon text-2xl leading-none">خداع</div>
+      <div className="mt-1 text-xs text-slate-500">جريمة قتل في عمارة 64</div>
+    </div>
+  );
+}
+
+function PhaseTracker({ phase }) {
+  const steps = [["night","الليل"],["r1","الجولة 1"],["r2","الجولة 2"],["r3","الجولة 3"],["end","النهاية"]];
+  const cur = steps.findIndex((s) => s[0] === phase);
+  return (
+    <ol className="flex items-center gap-1 sm:gap-2">
+      {steps.map(([k, ar], i) => (
+        <li key={k} className={`flex-1 rounded-lg px-1 py-1.5 text-center text-xs sm:text-sm transition ${i === cur ? "bg-red-500 font-semibold text-white shadow-lg shadow-red-500/30" : i < cur ? "bg-amber-500/15 text-amber-300" : "bg-white/5 text-slate-500"}`}>
+          {ar}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/* بطاقة الدور الخاصة بي (مخفية افتراضيًا حتى لا يراها الجالس بجانبك) */
+function RoleCard({ st, startOpen = false }) {
+  const [open, setOpen] = useState(startOpen);
+  const R = ROLES[st.my.role];
+  if (!R) return null;
+  if (!open)
+    return (
+      <button onClick={() => setOpen(true)} className={`${glass} flex w-full flex-col items-center gap-2 rounded-3xl p-8 text-center`}>
+        <EyeOff className="h-10 w-10 text-slate-500" strokeWidth={1.4} />
+        <span className="font-semibold">اضغط لرؤية دورك سرًّا</span>
+        <span className="text-xs text-slate-500">غطِّ الشاشة عن من حولك</span>
+      </button>
+    );
+  const sol = st.my.solution;
+  return (
+    <div className={`${glass} rounded-3xl border-2 ${R.ring} p-6`}>
+      <div className="text-center">
+        <R.Icon className={`mx-auto h-14 w-14 ${R.tone}`} strokeWidth={1.3} />
+        <h2 className={`dc-display mt-3 text-4xl ${R.tone}`}>{R.ar}</h2>
+        <p className="text-sm text-slate-400" dir="ltr">{R.en}</p>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-slate-300">{R.desc}</p>
+      </div>
+      {st.my.role === "accomplice" && (
+        <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-center">
+          القاتل هو <span className="font-bold text-red-300">{st.my.murderer}</span>
+        </div>
+      )}
+      {st.my.role === "witness" && (
+        <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-center">
+          المشتبه بهما: <span className="font-bold text-amber-200">{(st.my.pair || []).join(" و ")}</span>
+          {(st.my.pair || []).length > 1 && <div className="mt-1 text-xs text-slate-400">أحدهما القاتل والآخر شريكه.</div>}
+        </div>
+      )}
+      {st.my.role === "forensic" && (
+        <div className="mt-4 rounded-xl border border-sky-400/30 bg-sky-400/10 p-3 text-center">
+          {sol ? (
+            <>
+              <div className="text-xs text-slate-400">القاتل</div>
+              <div className="dc-display text-2xl text-red-400">{st.my.murderer}</div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <CardChip c={sol.means} kind="means" size="lg" />
+                <CardChip c={sol.evidence} kind="evidence" size="lg" />
+              </div>
+            </>
+          ) : (
+            <span className="text-sm">بانتظار اختيار القاتل لأداته ودليله…</span>
+          )}
+        </div>
+      )}
+      {st.my.role === "murderer" && sol && st.phase !== "night" && (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <CardChip c={sol.means} kind="means" size="lg" />
+          <CardChip c={sol.evidence} kind="evidence" size="lg" />
+        </div>
+      )}
+      <Btn variant="ghost" className="mt-5 w-full" onClick={() => setOpen(false)}>
+        <EyeOff className="h-4 w-4" /> إخفاء
+      </Btn>
+    </div>
+  );
+}
+
+/* ───────── الشاشة الرئيسية ───────── */
+function Home({ flash }) {
+  const params = new URLSearchParams(location.search);
+  const [name, setName] = useState(store.get("dc_name") || "");
+  const [code, setCode] = useState(params.get("room") || "");
+  const [busy, setBusy] = useState(false);
+
+  const go = async (kind) => {
+    const n = name.trim();
+    if (!n) return flash("اكتب اسمك أولًا");
+    if (kind === "join" && !/^\d{4}$/.test(code.trim())) return flash("رمز الغرفة 4 أرقام");
+    store.set("dc_name", n);
+    setBusy(true);
+    const r = await send(kind, { name: n, playerId: PID, code: code.trim() });
+    setBusy(false);
+    if (r.error) return flash(r.error);
+    store.set("dc_room", r.code);
+    history.replaceState(null, "", `?room=${r.code}`);
+  };
+
+  return (
+    <div className="mx-auto max-w-md">
+      <Title big />
+      <div className={`${glass} space-y-6 rounded-3xl p-6`}>
+        <label className="block">
+          <span className="mb-1.5 block text-sm text-slate-400">اسمك</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} placeholder="مثلًا: أحمد"
+            className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-lg outline-none focus:border-amber-500/60" />
+        </label>
+
+        <div className="space-y-2">
+          <span className="block text-sm text-slate-400">رمز الغرفة</span>
+          <div className="flex gap-2">
+            <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="0000" dir="ltr"
+              className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-center text-2xl tracking-widest outline-none focus:border-amber-500/60" />
+            <Btn variant="amber" disabled={busy} onClick={() => go("join")} className="px-6">دخول</Btn>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-xs text-slate-500">
+          <span className="h-px flex-1 bg-white/10" />أو<span className="h-px flex-1 bg-white/10" />
+        </div>
+
+        <Btn disabled={busy} onClick={() => go("create")} className="w-full py-3.5 text-lg">إنشاء غرفة جديدة</Btn>
+      </div>
+      <p className="mt-5 text-center text-xs leading-6 text-slate-500">
+        من ينشئ الغرفة يصبح المضيف. يدخل الباقون بالرمز أو بالرابط، كل واحد من جواله.
+      </p>
+    </div>
+  );
+}
+
+/* ───────── غرفة الانتظار ───────── */
+function Lobby({ st, act, leave, flash }) {
+  const isHost = st.hostId === st.me;
+  const n = st.players.length;
+  const allowed = n >= 6;
+  const link = `${location.origin}/?room=${st.code}`;
+
+  const share = async () => {
+    try {
+      if (navigator.share) await navigator.share({ title: "خداع: جريمة قتل في عمارة 64", text: `انضم للعبة. رمز الغرفة ${st.code}`, url: link });
+      else { await navigator.clipboard.writeText(link); flash("تم نسخ الرابط", "ok"); }
+    } catch (e) {}
+  };
+  const setOpt = (patch) => act("setOpts", { ...st.opts, ...patch });
+
+  const inv = Math.max(0, n - 2 - (st.opts.accomplice && allowed ? 1 : 0) - (st.opts.witness && allowed ? 1 : 0));
+
+  return (
+    <div className="mx-auto max-w-lg space-y-5">
+      <div className="flex items-start justify-between">
+        <Title />
+        <Btn variant="ghost" className="px-3 py-2 text-sm" onClick={leave}><LogOut className="h-4 w-4" /> خروج</Btn>
+      </div>
+
+      <div className={`${glass} rounded-3xl p-6 text-center`}>
+        <div className="text-sm text-slate-400">رمز الغرفة</div>
+        <div className="dc-display my-1 text-6xl tracking-widest text-amber-400 dc-amber" dir="ltr">{st.code}</div>
+        <Btn variant="ghost" className="mt-3" onClick={share}><Share2 className="h-4 w-4" /> مشاركة رابط الدعوة</Btn>
+      </div>
+
+      <div className={`${glass} rounded-3xl p-5`}>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold">اللاعبون</h2>
+          <span className={`text-sm ${n >= 4 ? "text-amber-400" : "text-slate-400"}`}>{n} / 12</span>
+        </div>
+        <ul className="space-y-1.5">
+          {st.players.map((p) => (
+            <li key={p.id} className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2">
+              <span className={`h-2 w-2 rounded-full ${p.connected ? "bg-emerald-400" : "bg-slate-600"}`} />
+              <span className="flex-1 font-medium">{p.name}{p.id === st.me && <span className="mr-1 text-xs text-slate-500">(أنت)</span>}</span>
+              {p.id === st.hostId && <Crown className="h-4 w-4 text-amber-400" />}
+              {isHost && p.id !== st.me && (
+                <button aria-label={`إخراج ${p.name}`} onClick={() => act("kick", { pid: p.id })} className="rounded-lg p-1 text-slate-500 hover:bg-white/10 hover:text-red-400">
+                  <UserX className="h-4 w-4" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        {n < 4 && <p className="mt-3 text-center text-xs text-slate-400">تحتاج 4 لاعبين على الأقل.</p>}
+      </div>
+
+      <div className={`${glass} space-y-3 rounded-3xl p-5`}>
+        <h2 className="font-semibold">الإعدادات {!isHost && <span className="text-xs font-normal text-slate-500">(يحددها المضيف)</span>}</h2>
+        <Toggle on={st.opts.accomplice && allowed} disabled={!isHost || !allowed} onChange={(v) => setOpt({ accomplice: v })}
+          label="الشريك · Accomplice" sub="يعرف القاتل ويفوز معه" />
+        <Toggle on={st.opts.witness && allowed} disabled={!isHost || !allowed} onChange={(v) => setOpt({ witness: v })}
+          label="الشاهد · Witness" sub="يعرف القاتل والشريك، ويُفتح باب تخمين الشاهد عند الكشف" />
+        {!allowed && <p className="text-xs text-slate-400">الأدوار الإضافية تحتاج 6 لاعبين أو أكثر.</p>}
+
+        <div className="pt-2">
+          <div className="mb-2 text-sm text-slate-400">فني مسرح الجريمة</div>
+          <div className="flex flex-wrap gap-1.5">
+            {[{ id: null, name: "عشوائي" }, ...st.players].map((p) => (
+              <button key={p.id || "rnd"} disabled={!isHost} onClick={() => setOpt({ fsId: p.id })}
+                className={`rounded-lg px-3 py-1.5 text-sm transition disabled:cursor-default ${st.opts.fsId === p.id ? "bg-sky-500 text-slate-900 font-semibold" : "bg-white/5 hover:bg-white/10"}`}>
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <p className="rounded-xl bg-slate-900/50 p-3 text-sm leading-7 text-slate-300">
+          فني واحد، قاتل واحد{st.opts.accomplice && allowed && "، شريك"}{st.opts.witness && allowed && "، شاهد"}، و{inv} {inv === 1 ? "محقق" : "محققين"}.
+        </p>
+      </div>
+
+      {isHost ? (
+        <Btn className="w-full py-3.5 text-lg" disabled={n < 4} onClick={() => act("start")}>بدء اللعبة</Btn>
+      ) : (
+        <p className="text-center text-sm text-slate-400">بانتظار المضيف ليبدأ اللعبة…</p>
+      )}
+    </div>
+  );
+}
+
+/* ───────── الليل ───────── */
+function Night({ st, act }) {
+  const me = st.players.find((p) => p.id === st.me);
+  const role = st.my.role;
+  const isHost = st.hostId === st.me;
+  const [m, setM] = useState(st.my.solution ? st.my.solution.means.id : null);
+  const [e, setE] = useState(st.my.solution ? st.my.solution.evidence.id : null);
+  const saved = st.my.solution && st.my.solution.means.id === m && st.my.solution.evidence.id === e;
+  const readyCount = st.players.filter((p) => p.ready).length;
+
+  return (
+    <div className="mx-auto max-w-lg space-y-5">
+      <div className="flex items-center gap-3">
+        <Moon className="h-8 w-8 text-amber-400" strokeWidth={1.3} />
+        <div>
+          <h2 className="dc-display text-2xl">مرحلة الليل</h2>
+          <p className="text-sm text-slate-400">اطّلع على دورك بصمت.</p>
+        </div>
+      </div>
+
+      <RoleCard st={st} />
+
+      {role === "murderer" && (
+        <div className={`${glass} space-y-4 rounded-3xl p-5`}>
+          <p className="text-center text-sm font-semibold text-red-300">اختر الأداة والدليل اللذين استخدمتهما في جريمتك</p>
+          <CardRow title="أدوات الجريمة · Means" cards={me.means} kind="means" size="lg" pick={m} onPick={setM} />
+          <CardRow title="الأدلة · Evidence" cards={me.evidence} kind="evidence" size="lg" pick={e} onPick={setE} />
+          <Btn variant={saved ? "ghost" : "primary"} className="w-full" disabled={!m || !e || saved}
+            onClick={() => act("pickSolution", { meansId: m, evidenceId: e })}>
+            {saved ? <><Check className="h-4 w-4" /> تم تأكيد اختيارك</> : "تأكيد الاختيار"}
+          </Btn>
+        </div>
+      )}
+
+      {role !== "forensic" && role !== "murderer" && me.means.length > 0 && (
+        <div className={`${glass} space-y-4 rounded-3xl p-5`}>
+          <CardRow title="أدوات الجريمة لديك" cards={me.means} kind="means" />
+          <CardRow title="الأدلة لديك" cards={me.evidence} kind="evidence" />
+        </div>
+      )}
+
+      <div className={`${glass} rounded-3xl p-5 text-center`}>
+        <div className="mb-3 text-sm text-slate-400">{readyCount} من {st.players.length} جاهزون</div>
+        <Btn className="w-full py-3" disabled={me.ready || (role === "murderer" && !st.my.solution)} onClick={() => act("ready")}>
+          {me.ready ? <><Check className="h-4 w-4" /> أنت جاهز</> : "جاهز"}
+        </Btn>
+        {isHost && st.solutionSet && readyCount < st.players.length && (
+          <button onClick={() => act("forceStart")} className="mt-3 text-sm text-amber-400 underline-offset-4 hover:underline">
+            ابدأ الجولة الأولى دون انتظار البقية
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ───────── لوحة الفني ───────── */
+function Tile({ title, sub, options, mark, onMark, variant, action }) {
+  const head = variant === "cause" ? "bg-red-500/20 text-red-200" : variant === "location" ? "bg-amber-500/20 text-amber-200" : "bg-white/5 text-slate-200";
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/50">
+      <div className={`flex items-center justify-between gap-2 px-3 py-2 ${head}`}>
+        <div>
+          <div className="font-semibold leading-tight">{title}</div>
+          <div className="text-xs opacity-60">{sub}</div>
+        </div>
+        {action}
+      </div>
+      <div className="grid grid-cols-2 gap-px bg-white/5 sm:grid-cols-3">
+        {options.map((o, i) => {
+          const on = mark === i;
+          const Tag = onMark ? "button" : "div";
+          return (
+            <Tag key={i} onClick={onMark ? () => onMark(on ? null : i) : undefined}
+              className={`relative flex min-h-14 items-center gap-2 px-2.5 py-2 text-right transition ${on ? "bg-red-500/15" : "bg-slate-900/80"} ${onMark && !on ? "hover:bg-slate-800" : ""}`}>
+              <span className={`h-3 w-3 shrink-0 rounded-full border ${on ? "dc-pin border-red-300 bg-red-500" : "border-slate-600"}`} />
+              <span>
+                <span className={`block text-sm leading-tight ${on ? "font-bold text-white" : "text-slate-300"}`}>{o.ar}</span>
+                <span className="block text-xs leading-tight text-slate-500">{o.en}</span>
+              </span>
+            </Tag>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ForensicBoard({ st, act }) {
+  const b = st.board;
+  const editable = st.my.role === "forensic";
+  const canReplace = editable && (st.phase === "r2" || st.phase === "r3") && !b.replaced[st.phase] && b.poolLeft > 0;
+  const marked = [b.cause, b.loc, ...b.scenes.map((s) => s.mark)].filter((x) => x !== null).length;
+  const mk = (tile) => (editable ? (v) => act("mark", { tile, value: v }) : undefined);
+
+  return (
+    <section className={`${glass} rounded-3xl p-4 sm:p-5`}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Microscope className="h-5 w-5 text-sky-300" />
+          <h2 className="dc-display text-xl">لوحة مسرح الجريمة</h2>
+        </div>
+        <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-slate-400">{marked} / 6 علامات</span>
+      </div>
+
+      {editable ? (
+        <p className="mb-4 rounded-xl border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-sm text-sky-200">
+          أنت الفني: اضغط على خيار لوضع العلامة، ويراها الجميع فورًا.
+        </p>
+      ) : (
+        <p className="mb-4 text-xs text-slate-500">العلامات يضعها فني مسرح الجريمة.</p>
+      )}
+
+      {editable && (st.phase === "r2" || st.phase === "r3") && (
+        <div className={`mb-4 flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${canReplace ? "border border-amber-500/40 bg-amber-500/10 text-amber-200" : "bg-white/5 text-slate-400"}`}>
+          <RefreshCw className="h-4 w-4 shrink-0" />
+          {canReplace ? "يمكنك استبدال بطاقة مشهد واحدة في هذه الجولة." : "استبدلت بطاقة المشهد لهذه الجولة."}
+        </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Tile title="سبب الوفاة" sub="Cause of Death" variant="cause" options={CAUSE} mark={b.cause} onMark={mk("cause")} />
+        <Tile title={`مكان الجريمة: ${b.locTile.ar}`} sub={`Location: ${b.locTile.en}`} variant="location"
+          options={b.locTile.opts} mark={b.loc} onMark={mk("loc")} action={<MapPin className="h-4 w-4 text-amber-300" />} />
+        {b.scenes.map((s, i) => (
+          <Tile key={s.tile.id} title={s.tile.ar} sub={s.tile.en} options={s.tile.opts} mark={s.mark} onMark={mk(i)}
+            action={canReplace && (
+              <button onClick={() => act("replace", { index: i })} className="flex items-center gap-1 rounded-lg bg-amber-500 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-amber-400">
+                <RefreshCw className="h-3 w-3" /> استبدال
+              </button>
+            )} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ───────── المؤقت المشترك ───────── */
+function SharedTimer({ st, act, canControl }) {
+  const t = st.timer;
+  const [, tick] = useState(0);
+  const [sound, setSound] = useState(store.get("dc_sound") !== "0");
+  const [flashKey, setFlashKey] = useState(0);
+
+  useEffect(() => {
+    if (!t.endsAt) return;
+    const id = setInterval(() => tick((x) => x + 1), 250);
+    return () => clearInterval(id);
+  }, [t.endsAt]);
+
+  const left = t.endsAt ? Math.max(0, Math.ceil((t.endsAt - now()) / 1000)) : t.remaining;
+  const running = !!t.endsAt && left > 0;
+  const prev = useRef(left);
+  useEffect(() => {
+    if (t.endsAt && prev.current > 0 && left === 0) {
+      setFlashKey((k) => k + 1);
+      if (sound) beep(660, 0.25, 4);
+      vibrate([200, 100, 200]);
+    } else if (t.endsAt && left > 0 && left <= 3 && left !== prev.current && sound) beep(990, 0.07, 1);
+    prev.current = left;
+  }, [left]);
+
+  const R = 54, C = 2 * Math.PI * R;
+  const frac = t.total ? Math.min(1, left / t.total) : 0;
+  const low = left <= 10;
+
+  return (
+    <section className={`${glass} relative overflow-hidden rounded-3xl p-5`}>
+      {flashKey > 0 && <div key={flashKey} className="dc-flash pointer-events-none absolute inset-0" />}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Timer className="h-5 w-5 text-amber-400" />
+          <h2 className="dc-display text-xl">مؤقت النقاش</h2>
+        </div>
+        <button aria-label="الصوت" onClick={() => { const v = !sound; setSound(v); store.set("dc_sound", v ? "1" : "0"); }} className="rounded-lg bg-white/5 p-2 hover:bg-white/10">
+          {sound ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-slate-500" />}
+        </button>
+      </div>
+
+      <div className="flex items-center gap-5">
+        <svg viewBox="0 0 128 128" className="h-32 w-32 shrink-0 -rotate-90">
+          <circle cx="64" cy="64" r={R} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="8" />
+          <circle cx="64" cy="64" r={R} fill="none" stroke={low ? "#ef4444" : "#f59e0b"} strokeWidth="8" strokeLinecap="round"
+            strokeDasharray={C} strokeDashoffset={C * (1 - frac)} style={{ transition: "stroke-dashoffset .3s linear, stroke .3s" }} />
+          <text x="64" y="64" textAnchor="middle" dominantBaseline="central" transform="rotate(90 64 64)"
+            fill={low ? "#fca5a5" : "#f8fafc"} fontSize="26" fontWeight="600" fontFamily="'IBM Plex Sans Arabic',sans-serif">{fmt(left)}</text>
+        </svg>
+
+        {canControl ? (
+          <div className="flex-1 space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              {[30, 60, 120, 180, 300].map((s) => (
+                <button key={s} onClick={() => act("timer", { action: "set", seconds: s })}
+                  className={`rounded-lg px-2.5 py-1 text-xs ${t.total === s ? "bg-amber-500 font-semibold text-slate-900" : "bg-white/5 hover:bg-white/10"}`}>
+                  {s < 60 ? `${s}ث` : `${s / 60}د`}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button aria-label="إنقاص 15 ثانية" onClick={() => act("timer", { action: "adjust", delta: -15 })} className="rounded-lg bg-white/5 p-2 hover:bg-white/10"><Minus className="h-4 w-4" /></button>
+              <span className="text-xs text-slate-400">15 ث</span>
+              <button aria-label="زيادة 15 ثانية" onClick={() => act("timer", { action: "adjust", delta: 15 })} className="rounded-lg bg-white/5 p-2 hover:bg-white/10"><Plus className="h-4 w-4" /></button>
+            </div>
+            <div className="flex gap-1.5">
+              <Btn variant={running ? "ghost" : "amber"} className="flex-1 py-2" onClick={() => act("timer", { action: running ? "pause" : "start" })}>
+                {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />} {running ? "إيقاف" : "ابدأ"}
+              </Btn>
+              <Btn variant="ghost" className="py-2" onClick={() => act("timer", { action: "reset" })}><RotateCcw className="h-4 w-4" /></Btn>
+            </div>
+          </div>
+        ) : (
+          <p className="flex-1 text-sm leading-6 text-slate-400">المؤقت يظهر عند الجميع، ويتحكم به الفني أو المضيف.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ───────── اللاعبون ───────── */
+function PlayerMatrix({ st, onAccuse, canAccuse }) {
+  const left = st.players.filter((p) => p.role !== "forensic" && p.badge).length;
+  return (
+    <section className={`${glass} rounded-3xl p-4 sm:p-5`}>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Users className="h-5 w-5 text-red-400" />
+          <h2 className="dc-display text-xl">اللاعبون</h2>
+          <span className="text-xs text-slate-400">{left} شارة متبقية</span>
+        </div>
+        {canAccuse && <Btn onClick={onAccuse} className="py-2 text-sm"><Gavel className="h-4 w-4" /> اتهام</Btn>}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        {st.players.map((p) =>
+          p.role === "forensic" ? (
+            <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-sky-400/30 bg-sky-400/5 p-3">
+              <Microscope className="h-6 w-6 text-sky-300" />
+              <div className="flex-1">
+                <div className="font-semibold">{p.name}{p.id === st.me && <span className="mr-1 text-xs text-slate-500">(أنت)</span>}</div>
+                <div className="text-xs text-sky-300">فني مسرح الجريمة · لا يتكلم</div>
+              </div>
+              {!p.connected && <WifiOff className="h-4 w-4 text-slate-500" />}
+            </div>
+          ) : (
+            <div key={p.id} className={`rounded-2xl border bg-slate-900/50 p-3 ${p.id === st.me ? "border-amber-500/40" : "border-white/10"} ${p.badge ? "" : "opacity-80"}`}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 font-semibold">
+                  {p.name}{p.id === st.me && <span className="text-xs font-normal text-slate-500">(أنت)</span>}
+                  {!p.connected && <WifiOff className="h-3.5 w-3.5 text-slate-500" />}
+                </div>
+                <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${p.badge ? "bg-amber-500 text-slate-900 shadow shadow-amber-500/40" : "bg-slate-700 text-slate-400 line-through"}`}>
+                  {p.badge ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldOff className="h-3.5 w-3.5" />}
+                  {p.badge ? "الشارة متاحة" : "مستخدمة"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">{p.means.map((c) => <CardChip key={c.id} c={c} kind="means" />)}</div>
+                <div className="space-y-1">{p.evidence.map((c) => <CardChip key={c.id} c={c} kind="evidence" />)}</div>
+              </div>
+            </div>
+          )
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ───────── نافذة الاتهام ───────── */
+function AccuseModal({ st, act, onClose }) {
+  const [target, setTarget] = useState(null);
+  const [m, setM] = useState(null);
+  const [e, setE] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [wrong, setWrong] = useState(false);
+  const targets = st.players.filter((p) => p.role !== "forensic" && p.id !== st.me);
+  const t = st.players.find((p) => p.id === target);
+
+  const submit = async () => {
+    setBusy(true);
+    const r = await act("accuse", { targetId: target, meansId: m, evidenceId: e });
+    setBusy(false);
+    if (r.ok && !r.correct) setWrong(true);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true">
+      <div className={`${glass} max-h-full w-full max-w-lg overflow-y-auto rounded-3xl bg-slate-900/90 p-5`} style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Gavel className="h-5 w-5 text-red-400" />
+            <h2 className="dc-display text-2xl">اتهام</h2>
+          </div>
+          <button aria-label="إغلاق" onClick={onClose} className="rounded-lg p-2 hover:bg-white/10"><X className="h-5 w-5" /></button>
+        </div>
+
+        {wrong ? (
+          <div className="text-center">
+            <X className="mx-auto h-14 w-14 text-red-500" />
+            <p className="dc-display mt-2 text-2xl text-red-300">اتهام خاطئ</p>
+            <p className="mt-2 text-sm text-slate-400">فقدت شارتك ولا يمكنك الاتهام مجددًا، لكنك تواصل النقاش.</p>
+            <Btn variant="ghost" className="mt-6 w-full" onClick={onClose}>متابعة اللعب</Btn>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs leading-6 text-amber-200">لديك اتهام واحد فقط طوال اللعبة. يجب أن تصيب القاتل وأداته ودليله معًا.</p>
+            <div>
+              <div className="mb-2 text-sm text-slate-400">المشتبه به</div>
+              <div className="flex flex-wrap gap-1.5">
+                {targets.map((p) => (
+                  <button key={p.id} onClick={() => { setTarget(p.id); setM(null); setE(null); }}
+                    className={`rounded-lg px-3 py-1.5 text-sm transition ${target === p.id ? "bg-red-500 text-white" : "bg-white/5 hover:bg-white/10"}`}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {t && (
+              <div className="space-y-3">
+                <CardRow title="أداة الجريمة" cards={t.means} kind="means" pick={m} onPick={setM} />
+                <CardRow title="الدليل" cards={t.evidence} kind="evidence" pick={e} onPick={setE} />
+              </div>
+            )}
+            <Btn className="w-full py-3" disabled={busy || !(t && m && e)} onClick={submit}>
+              <Crosshair className="h-4 w-4" /> تأكيد الاتهام
+            </Btn>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ───────── شاشة اللعب ───────── */
+function Game({ st, act }) {
+  const [tab, setTab] = useState("board");
+  const [accusing, setAccusing] = useState(false);
+  const [showRole, setShowRole] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const me = st.players.find((p) => p.id === st.me);
+  const isFS = st.my.role === "forensic";
+  const isHost = st.hostId === st.me;
+  const canControl = isFS || isHost;
+  const canAccuse = !isFS && me.badge;
+
+  useEffect(() => setConfirmEnd(false), [st.phase]);
+
+  const advance = () => {
+    if (st.phase === "r3" && !confirmEnd) return setConfirmEnd(true);
+    act("advance");
+  };
+
+  return (
+    <div className="pb-24 lg:pb-6">
+      <div className="mb-5 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <Title />
+          <div className="flex items-center gap-2">
+            <Btn variant="ghost" className="px-3 py-2 text-sm" onClick={() => setShowRole(true)}><Eye className="h-4 w-4" /> دوري</Btn>
+            {canControl && (
+              <>
+                {confirmEnd && <Btn variant="ghost" className="px-3 py-2 text-sm" onClick={() => setConfirmEnd(false)}>تراجع</Btn>}
+                <Btn variant={st.phase === "r3" ? "primary" : "amber"} className="px-3 py-2 text-sm" onClick={advance}>
+                  {st.phase === "r3" ? (confirmEnd ? "تأكيد: فوز القاتل" : "انتهى الوقت") : "الجولة التالية"}
+                  <ChevronLeft className="h-4 w-4" />
+                </Btn>
+              </>
+            )}
+          </div>
+        </div>
+        <PhaseTracker phase={st.phase} />
+      </div>
+
+      <div className="lg:grid lg:grid-cols-12 lg:gap-6">
+        <div className={`${tab === "board" ? "block" : "hidden"} lg:col-span-7 lg:block`}>
+          <ForensicBoard st={st} act={act} />
+        </div>
+        <div className="space-y-6 lg:col-span-5">
+          <div className={`${tab === "timer" ? "block" : "hidden"} lg:block`}>
+            <SharedTimer st={st} act={act} canControl={canControl} />
+          </div>
+          <div className={`${tab === "players" ? "block" : "hidden"} lg:block`}>
+            <PlayerMatrix st={st} canAccuse={canAccuse} onAccuse={() => setAccusing(true)} />
+          </div>
+        </div>
+      </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-900/85 backdrop-blur-xl lg:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        <div className={`mx-auto grid max-w-md ${canAccuse ? "grid-cols-4" : "grid-cols-3"}`}>
+          {[["board","اللوحة",LayoutGrid],["players","اللاعبون",Users],["timer","المؤقت",Timer]].map(([k, ar, Icon]) => (
+            <button key={k} onClick={() => setTab(k)} className={`flex flex-col items-center gap-1 py-3 text-xs ${tab === k ? "text-amber-400" : "text-slate-400"}`}>
+              <Icon className="h-5 w-5" />{ar}
+            </button>
+          ))}
+          {canAccuse && (
+            <button onClick={() => setAccusing(true)} className="flex flex-col items-center gap-1 py-3 text-xs text-red-400">
+              <Gavel className="h-5 w-5" />اتهام
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {accusing && <AccuseModal st={st} act={act} onClose={() => setAccusing(false)} />}
+
+      {showRole && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-sm" onClick={() => setShowRole(false)}>
+          <div className="w-full max-w-md" onClick={(ev) => ev.stopPropagation()}>
+            <RoleCard st={st} startOpen />
+            <Btn variant="ghost" className="mt-3 w-full" onClick={() => setShowRole(false)}>إغلاق</Btn>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───────── تخمين الشاهد ───────── */
+function Witness({ st, act }) {
+  const [sel, setSel] = useState(null);
+  const [confirm, setConfirm] = useState(false);
+  const role = st.my.role;
+  const c = st.caught || {};
+  const guesser = role === "murderer" || role === "accomplice";
+
+  return (
+    <div className="mx-auto max-w-lg">
+      <div className={`${glass} rounded-3xl p-7 text-center`}>
+        <Eye className="mx-auto h-12 w-12 text-amber-400" strokeWidth={1.3} />
+        <h2 className="dc-display mt-3 text-3xl">من هو الشاهد؟</h2>
+        <p className="mt-3 text-sm leading-7 text-slate-300">
+          كُشف القاتل <span className="font-bold text-red-400">{c.murderer}</span>
+          {c.accomplice && <> وشريكه <span className="font-bold text-orange-400">{c.accomplice}</span></>}.
+          لديهما فرصة أخيرة: إن عرفا الشاهد، يفوز القاتل.
+        </p>
+
+        {guesser ? (
+          <>
+            <p className="mt-4 text-sm text-amber-300">تشاورا، ثم اختر الشاهد. لديكما تخمين واحد.</p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {(st.witnessCandidates || []).map((p) => (
+                <button key={p.id} onClick={() => { setSel(p.id); setConfirm(false); }}
+                  className={`rounded-xl px-3 py-3 font-semibold transition ${sel === p.id ? "bg-red-500 text-white" : "bg-white/5 hover:bg-white/10"}`}>
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            <Btn className="mt-6 w-full py-3" disabled={sel === null}
+              onClick={() => (confirm ? act("witnessGuess", { targetId: sel }) : setConfirm(true))}>
+              {confirm ? "متأكد؟ اضغط مرة أخرى" : "تأكيد التخمين"}
+            </Btn>
+          </>
+        ) : (
+          <p className="mt-6 rounded-xl bg-white/5 p-4 text-sm text-slate-300">
+            {role === "witness" ? "أنت الشاهد. حافظ على هدوئك ولا تُظهر أي ردة فعل." : "بانتظار تخمين القاتل…"}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ───────── النهاية ───────── */
+function End({ st, act, leave }) {
+  const w = st.winner;
+  const inv = w.side === "investigators";
+  const isHost = st.hostId === st.me;
+  const mur = st.players.find((p) => p.role === "murderer");
+  return (
+    <div className="mx-auto max-w-2xl space-y-5">
+      <PhaseTracker phase="end" />
+      <div className={`${glass} rounded-3xl p-8 text-center`}>
+        {inv ? <Trophy className="mx-auto h-14 w-14 text-amber-400" strokeWidth={1.3} /> : <Skull className="mx-auto h-14 w-14 text-red-500" strokeWidth={1.3} />}
+        <h2 className={`dc-display mt-3 text-4xl ${inv ? "text-amber-400 dc-amber" : "dc-neon"}`}>{inv ? "فاز المحققون" : "فاز القاتل"}</h2>
+        <p className="mt-1 text-sm text-slate-400" dir="ltr">{inv ? "Investigators Win" : "Murderer Wins"}</p>
+        <p className="mt-4 leading-7 text-slate-300">{w.reason}</p>
+        {st.solution && (
+          <div className="mx-auto mt-6 max-w-sm rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+            <div className="text-xs text-slate-400">الحل</div>
+            <div className="dc-display text-2xl text-red-400">{mur && mur.name}</div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <CardChip c={st.solution.means} kind="means" size="lg" />
+              <CardChip c={st.solution.evidence} kind="evidence" size="lg" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={`${glass} rounded-3xl p-5`}>
+        <h3 className="mb-3 font-semibold">الأدوار</h3>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {st.players.map((p) => {
+            const R = ROLES[p.role] || ROLES.investigator;
+            return (
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2">
+                <R.Icon className={`h-4 w-4 ${R.tone}`} />
+                <div>
+                  <div className="text-sm font-semibold">{p.name}</div>
+                  <div className={`text-xs ${R.tone}`}>{R.ar}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {st.log.length > 0 && (
+          <>
+            <h3 className="mb-2 mt-5 font-semibold">سجل اللعبة</h3>
+            <ul className="space-y-1 text-sm text-slate-400">{st.log.map((l, i) => <li key={i}>• {l}</li>)}</ul>
+          </>
+        )}
+      </div>
+
+      {isHost ? (
+        <div className="grid grid-cols-2 gap-2">
+          <Btn variant="ghost" onClick={() => act("newGame")}>تعديل الإعدادات</Btn>
+          <Btn onClick={() => act("start")}><RefreshCw className="h-4 w-4" /> جولة جديدة</Btn>
+        </div>
+      ) : (
+        <p className="text-center text-sm text-slate-400">بانتظار المضيف لبدء جولة جديدة…</p>
+      )}
+      <button onClick={leave} className="mx-auto flex items-center gap-1 text-sm text-slate-500 hover:text-slate-300"><LogOut className="h-4 w-4" /> مغادرة الغرفة</button>
+    </div>
+  );
+}
+
+/* ───────── التطبيق ───────── */
+function App() {
+  const [st, setSt] = useState(null);
+  const [online, setOnline] = useState(socket.connected);
+  const [booting, setBooting] = useState(!!store.get("dc_room"));
+  const [toast, setToast] = useState(null);
+  const lastEv = useRef(undefined);
+
+  const flash = (text, kind = "err") => setToast({ text, kind, id: Date.now() });
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), toast.kind === "err" ? 3500 : 5000);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  useEffect(() => {
+    const rejoin = async () => {
+      const code = store.get("dc_room");
+      if (!code) return setBooting(false);
+      const r = await send("join", { code, playerId: PID, name: store.get("dc_name") || "" });
+      if (r.error) { store.del("dc_room"); setSt(null); }
+      setBooting(false);
+    };
+    const onC = () => { setOnline(true); rejoin(); };
+    const onD = () => setOnline(false);
+    const onS = (s) => { clockOffset = s.serverNow - Date.now(); setSt(s); };
+    const onK = () => { store.del("dc_room"); setSt(null); flash("أخرجك المضيف من الغرفة"); };
+    const onR = () => { setSt(null); flash("فُتحت اللعبة بحسابك من نافذة أخرى"); };
+    socket.on("connect", onC);
+    socket.on("disconnect", onD);
+    socket.on("state", onS);
+    socket.on("kicked", onK);
+    socket.on("replaced", onR);
+    if (socket.connected) onC();
+    const fallback = setTimeout(() => setBooting(false), 6000);
+    return () => {
+      socket.off("connect", onC); socket.off("disconnect", onD); socket.off("state", onS);
+      socket.off("kicked", onK); socket.off("replaced", onR); clearTimeout(fallback);
+    };
+  }, []);
+
+  // إعلان الاتهامات للجميع
+  useEffect(() => {
+    if (!st) return;
+    const id = st.event ? st.event.id : 0;
+    if (lastEv.current === undefined) { lastEv.current = id; return; }
+    if (id !== lastEv.current) {
+      lastEv.current = id;
+      if (st.event) {
+        flash(`${st.event.ok ? "اتهام صحيح! " : "اتهام خاطئ: "}${st.event.text}`, st.event.ok ? "ok" : "bad");
+        vibrate(st.event.ok ? [100, 50, 100, 50, 300] : 250);
+      }
+    }
+  }, [st]);
+
+  // إبقاء الشاشة مضاءة أثناء اللعب
+  useEffect(() => {
+    if (!st || st.phase === "lobby" || !("wakeLock" in navigator)) return;
+    let lock = null;
+    const req = async () => { try { lock = await navigator.wakeLock.request("screen"); } catch (e) {} };
+    const onVis = () => { if (document.visibilityState === "visible") req(); };
+    req();
+    document.addEventListener("visibilitychange", onVis);
+    return () => { document.removeEventListener("visibilitychange", onVis); try { lock && lock.release(); } catch (e) {} };
+  }, [st && st.phase === "lobby"]);
+
+  const act = async (ev, data) => {
+    const r = await send(ev, data);
+    if (r.error) flash(r.error);
+    return r;
+  };
+  const leave = async () => {
+    await send("leave");
+    store.del("dc_room");
+    history.replaceState(null, "", location.pathname);
+    setSt(null);
+  };
+
+  let body;
+  if (!st) body = booting ? <p className="pt-32 text-center text-slate-400">جارٍ الاتصال…</p> : <Home flash={flash} />;
+  else if (st.phase === "lobby") body = <Lobby st={st} act={act} leave={leave} flash={flash} />;
+  else if (st.phase === "night") body = <div className="space-y-5"><div className="mx-auto max-w-lg"><PhaseTracker phase="night" /></div><Night key={st.code + st.log[0]} st={st} act={act} /></div>;
+  else if (ROUNDS.includes(st.phase)) body = <Game st={st} act={act} />;
+  else if (st.phase === "witness") body = <Witness st={st} act={act} />;
+  else if (st.phase === "end") body = <End st={st} act={act} leave={leave} />;
+
+  const toastTone = toast && (toast.kind === "ok" ? "border-amber-400/50 bg-amber-500/90 text-slate-900" : toast.kind === "bad" ? "border-red-400/50 bg-red-600/90 text-white" : "border-white/10 bg-slate-800/95 text-slate-100");
+
+  return (
+    <div dir="rtl" lang="ar" className="dc-root min-h-screen text-slate-100"
+      style={{ backgroundImage: "radial-gradient(60rem 30rem at 85% -10%, rgba(239,68,68,.18), transparent 60%), radial-gradient(50rem 30rem at 0% 110%, rgba(245,158,11,.10), transparent 60%)" }}>
+      <div className="dc-rain min-h-screen">
+        {st && !online && (
+          <div className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-red-600 py-1.5 text-sm text-white">
+            <WifiOff className="h-4 w-4" /> انقطع الاتصال، جارٍ إعادة المحاولة…
+          </div>
+        )}
+        <div className="mx-auto max-w-7xl px-3 py-6 sm:px-6">{body}</div>
+        {toast && (
+          <div key={toast.id} className={`dc-drop fixed inset-x-3 top-3 z-[60] mx-auto max-w-md rounded-2xl border px-4 py-3 text-center text-sm font-semibold shadow-2xl ${toastTone}`}
+            style={{ marginTop: "env(safe-area-inset-top, 0px)" }} onClick={() => setToast(null)}>
+            {toast.text}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
