@@ -221,7 +221,7 @@ function makeRoom() {
     code,
     hostId: null,
     players: [],
-    opts: { accomplice: false, witness: false, fsId: null },
+    opts: { accomplice: false, witness: false, fsId: null, images: true },
     phase: "lobby",
     solution: null,
     board: null,
@@ -462,7 +462,7 @@ io.on("connection", (socket) => {
     return {};
   });
 
-  handle("setOpts", ({ accomplice, witness, fsId }) => {
+  handle("setOpts", ({ accomplice, witness, fsId, images }) => {
     const { room, me } = ctx();
     if (!room) return NO_ROOM;
     if (!isHost(room, me)) return { error: "الإعدادات للمضيف فقط" };
@@ -471,6 +471,7 @@ io.on("connection", (socket) => {
       accomplice: !!accomplice,
       witness: !!witness,
       fsId: room.players.some((p) => p.id === fsId) ? fsId : null,
+      images: images !== false,
     };
     broadcast(room);
     return {};

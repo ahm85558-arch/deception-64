@@ -140,6 +140,7 @@ function Btn({ children, onClick, variant = "primary", disabled, className = "" 
 }
 
 let openZoom = () => {};
+let SHOW_IMG = true;
 
 function CardImg({ c, className = "" }) {
   const [ok, setOk] = useState(true);
@@ -165,6 +166,15 @@ function CardChip({ c, kind, active, onClick, size = "sm" }) {
   const handle = clickable ? onClick : () => openZoom(c, kind);
   const base = kind === "means" ? "border-red-500/30 bg-red-500/10 text-red-100" : "border-amber-500/30 bg-amber-500/10 text-amber-100";
   const ring = active ? (kind === "means" ? "ring-2 ring-red-500 bg-red-500/30" : "ring-2 ring-amber-400 bg-amber-500/30") : "";
+  if (!SHOW_IMG) {
+    const Tag = clickable ? "button" : "div";
+    return (
+      <Tag onClick={clickable ? onClick : undefined} className={`w-full rounded-lg border text-right ${size === "sm" ? "px-2 py-1.5" : "px-3 py-2.5"} ${base} ${ring} ${clickable ? "transition hover:brightness-125" : ""}`}>
+        <div className={`${size === "lg" ? "text-base" : "text-sm"} font-semibold leading-tight`}>{c.ar}</div>
+        <div className="truncate text-xs leading-tight opacity-60">{c.en}</div>
+      </Tag>
+    );
+  }
   if (size === "sm")
     return (
       <button onClick={handle} className={`flex w-full items-center gap-2 rounded-lg border p-1 text-right transition hover:brightness-125 ${base} ${ring}`}>
@@ -192,7 +202,7 @@ function CardChip({ c, kind, active, onClick, size = "sm" }) {
 }
 
 function CardRow({ title, cards, kind, pick, onPick, size }) {
-  const cols = size === "md" ? "grid-cols-4" : "grid-cols-2";
+  const cols = size === "md" && SHOW_IMG ? "grid-cols-4" : "grid-cols-2";
   return (
     <div>
       <div className={`mb-1.5 text-xs font-medium ${kind === "means" ? "text-red-300" : "text-amber-300"}`}>{title}</div>
@@ -440,6 +450,8 @@ function Lobby({ st, act, leave, flash }) {
         <Toggle on={st.opts.witness && allowed} disabled={!isHost || !allowed} onChange={(v) => setOpt({ witness: v })}
           label="الشاهد · Witness" sub="يعرف القاتل والشريك، ويُفتح باب تخمين الشاهد عند الكشف" />
         {!allowed && <p className="text-xs text-slate-400">الأدوار الإضافية تحتاج 6 لاعبين أو أكثر.</p>}
+        <Toggle on={st.opts.images !== false} disabled={!isHost} onChange={(v) => setOpt({ images: v })}
+          label="صور البطاقات · Card Images" sub="إظهار صورة لكل أداة ودليل، أو الاكتفاء بالأسماء" />
 
         <div className="pt-2">
           <div className="mb-2 text-sm text-slate-400">فني مسرح الجريمة</div>
@@ -1070,6 +1082,7 @@ function App() {
     setSt(null);
   };
 
+  SHOW_IMG = !st || !st.opts || st.opts.images !== false;
   let body;
   if (!st) body = booting ? <p className="pt-32 text-center text-slate-400">جارٍ الاتصال…</p> : <Home flash={flash} />;
   else if (st.phase === "lobby") body = <Lobby st={st} act={act} leave={leave} flash={flash} />;
